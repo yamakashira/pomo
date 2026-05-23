@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Pomodoro Timer</title>
+    <style>
+        :root {
+            --bg-work: #0b131a;
+            --theme-work: #00d2ff;
+            --bg-break: #0f1c15;
+            --theme-break: #2ed573;
+            --bg-long-break: #14101f;
+            --theme-long-break: #a55eea;
+            
+            --current-bg: #0b131a;
+            --current-theme: #00d2ff;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--current-bg);
+            color: #ffffff;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            transition: background-color 0.5s ease;
+        }
+
+        .container {
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            margin: 0 0 5px 0;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            opacity: 0.9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            background-color: rgba(255, 255, 255, 0.06);
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            text-transform: uppercase;
+        }
+
+        .clock-container {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            margin: 0 auto 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .progress-ring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform: rotate(-90deg);
+            z-index: 2;
+        }
+
+        .progress-ring__circle-bg {
+            stroke: rgba(255, 255, 255, 0.04);
+        }
+
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.3s linear, stroke 0.5s ease;
+            stroke-linecap: round;
+            filter: drop-shadow(0px 0px 6px var(--current-theme));
+        }
+
+        .clock-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .tick {
+            position: absolute;
+            top: 0;
+            left: calc(50% - 1px);
+            width: 2px;
+            height: 50%;
+            transform-origin: bottom center;
+        }
+
+        .tick::before {
+            content: '';
+            position: absolute;
+            top: 22px;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .tick.major::before {
+            height: 12px;
+            background-color: rgba(255, 255, 255, 0.35);
+            width: 2px;
+        }
+
+        .time-display {
+            font-size: 3.8rem;
+            font-weight: 300;
+            font-variant-numeric: tabular-nums;
+            z-index: 10;
+            letter-spacing: -1px;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .total-focus-container {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 35px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .total-focus-container span {
+            color: #00d2ff;
+            font-weight: bold;
+            margin-left: 5px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            min-height: 50px;
+            align-items: center;
+            position: relative;
+            z-index: 20;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #start-btn {
+            background-color: #ffffff;
+            color: #111111;
+            box-shadow: 0 4px 12px rgba(255,255,255,0.05);
+        }
+
+        #start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(255,255,255,0.15);
+        }
+
+        #reset-btn {
+            background-color: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        #reset-btn:hover {
+            background-color: rgba(255, 255, 255, 0.18);
+        }
+
+        #add-minute-btn {
+            background-color: #00d2ff;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        #add-minute-btn:hover {
+            filter: brightness(1.1);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1 id="cycle-title">Pomodoro Timer</h1>
+        <div class="status-badge" id="status-badge">Ready</div>
+
+        <div class="clock-container">
+            <svg class="progress-ring" width="320" height="320">
+                <circle class="progress-ring__circle-bg" stroke-width="6" fill="transparent" r="145" cx="160" cy="160"/>
+                <circle class="progress-ring__circle" stroke="#00d2ff" stroke-width="6" fill="transparent" r="145" cx="160" cy="160"/>
+            </svg>
+            
+            <div class="clock-face" id="clock-face"></div>
+            <div class="time-display" id="time-display">25:00</div>
+        </div>
+
+        <div class="total-focus-container" id="total-focus-container">
+            Total Focus Time: <span id="total-focus-display">00h 00m 00s</span>
+        </div>
+
+        <div class="controls">
+            <button id="start-btn">Start</button>
+            <button id="reset-btn">Reset</button>
+            <button id="add-minute-btn" style="display: none;">+1 Min</button>
+        </div>
+    </div>
+
+    <script>
+        const cycles = [
+            { name: "Work (1/4)", type: "work", duration: 25 * 60 },
+            { name: "Short Break (1/3)", type: "break", duration: 5 * 60 },
+            { name: "Work (2/4)", type: "work", duration: 25 * 60 },
+            { name: "Short Break (2/3)", type: "break", duration: 5 * 60 },
+            { name: "Work (3/4)", type: "work", duration: 25 * 60 },
+            { name: "Short Break (3/3)", type: "break", duration: 5 * 60 },
+            { name: "Work (4/4)", type: "work", duration: 25 * 60 },
+            { name: "Long Break", type: "longBreak", duration: 20 * 60 }
+        ];
+
+        let currentIdx = 0;
+        let timeLeft = cycles[currentIdx].duration;
+        let currentMaxDuration = cycles[currentIdx].duration;
+        let timerId = null;
+        let isRunning = false;
+        let totalFocusSeconds = 0;
+
+        const timeDisplay = document.getElementById('time-display');
+        const cycleTitle = document.getElementById('cycle-title');
+        const statusBadge = document.getElementById('status-badge');
+        const startBtn = document.getElementById('start-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const addMinuteBtn = document.getElementById('add-minute-btn');
+        const clockFace = document.getElementById('clock-face');
+        const circle = document.querySelector('.progress-ring__circle');
+        const totalFocusDisplay = document.getElementById('total-focus-display');
+        
+        // 【重要】エラーの原因になりやすい処理を、超安全な古い記述（getAttribute）に変更
+        const radius = parseFloat(circle.getAttribute('r'));
+        const circumference = radius * 2 * Math.PI;
+        circle.style.strokeDasharray = `${circumference} ${circumference}`;
+
+        function createClockTicks() {
+            if(!clockFace) return;
+            clockFace.innerHTML = ''; 
+            for (let i = 0; i < 60; i++) {
+                const tick = document.createElement('div');
+                tick.classList.add('tick');
+                if (i % 5 === 0) tick.classList.add('major');
+                tick.style.transform = `rotate(${i * 6}deg)`;
+                clockFace.appendChild(tick);
+            }
+        }
+
+        function setProgress(percent) {
+            if(!circle) return;
+            const offset = circumference - (percent / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+        }
+
+        function updateDisplay() {
+            if(!timeDisplay) return;
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timeDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            const current = cycles[currentIdx];
+            if(cycleTitle) cycleTitle.textContent = current.name;
+            
+            if(statusBadge) {
+                if (!isRunning) {
+                    statusBadge.textContent = "Paused";
+                } else {
+                    statusBadge.textContent = current.type === 'work' ? "Focus!" : "Take a Break!";
+                }
+            }
+
+            const progressPercent = (timeLeft / currentMaxDuration) * 100;
+            setProgress(progressPercent);
+
+            const root = document.documentElement;
+            if (current.type === 'work') {
+                root.style.setProperty('--current-bg', 'var(--bg-work)');
+                root.style.setProperty('--current-theme', 'var(--theme-work)');
+            } else if (current.type === 'break') {
+                root.style.setProperty('--current-bg', 'var(--bg-break)');
+                root.style.setProperty('--current-theme', 'var(--theme-break)');
+            } else {
+                root.style.setProperty('--current-bg', 'var(--bg-long-break)');
+                root.style.setProperty('--current-theme', 'var(--theme-long-break)');
+            }
+
+            const hrs = Math.floor(totalFocusSeconds / 3600);
+            const mins = Math.floor((totalFocusSeconds % 3600) / 60);
+            const secs = totalFocusSeconds % 60;
+            if(totalFocusDisplay) {
+                totalFocusDisplay.textContent = `${String(hrs).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
+            }
+
+            if(addMinuteBtn) {
+                if (current.type === 'work' && isRunning) {
+                    addMinuteBtn.style.display = 'inline-block';
+                } else {
+                    addMinuteBtn.style.display = 'none';
+                }
+            }
+        }
+
+        function countdown() {
+            if (timeLeft > 0) {
+                timeLeft--;
+                if (cycles[currentIdx].type === 'work') {
+                    totalFocusSeconds++;
+                }
+                updateDisplay();
+            } else {
+                playAlertSound();
+                currentIdx = (currentIdx + 1) % cycles.length;
+                timeLeft = cycles[currentIdx].duration;
+                currentMaxDuration = cycles[currentIdx].duration;
+                updateDisplay();
+            }
+        }
+
+        function toggleTimer() {
+            if (isRunning) {
+                clearInterval(timerId);
+                isRunning = false;
+                if(startBtn) startBtn.textContent = 'Start';
+            } else {
+                isRunning = true;
+                if(startBtn) startBtn.textContent = 'Pause';
+                timerId = setInterval(countdown, 1000);
+            }
+            updateDisplay();
+        }
+
+        function resetTimer() {
+            clearInterval(timerId);
+            isRunning = false;
+            currentIdx = 0;
+            timeLeft = cycles[currentIdx].duration;
+            currentMaxDuration = cycles[currentIdx].duration;
+            totalFocusSeconds = 0;
+            if(startBtn) startBtn.textContent = 'Start';
+            updateDisplay();
+            if(statusBadge) statusBadge.textContent = "Ready";
+        }
+
+        function addOneMinute() {
+            if (cycles[currentIdx].type === 'work' && isRunning) {
+                timeLeft += 60;
+                currentMaxDuration += 60;
+                updateDisplay();
+            }
+        }
+
+        function playAlertSound() {
+            // スマホ環境で音が鳴らなくてもエラーで画面を止めないように保護
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch(e) {
+                console.log("Audio skipped");
+            }
+        }
+
+        if(startBtn) startBtn.addEventListener('click', toggleTimer);
+        if(resetBtn) resetBtn.addEventListener('click', resetTimer);
+        if(addMinuteBtn) addMinuteBtn.addEventListener('click', addOneMinute);
+
+        createClockTicks();
+        resetTimer(); 
+    </script>
+</body>
+</html>
